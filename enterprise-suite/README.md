@@ -54,7 +54,13 @@ set minikube=true
 
 ## kubectl apply enterprise suite:
 
-_This option will likely disappear in the future._
+If you really want to use `kubectl` to apply the enterprise suite
+resource definitions then follow the [instructions in the official documentation](https://developer.lightbend.com/docs/console/current/installation/es.html#use-the-install-subcommand-to-generate-the-resource-yaml).
+
+### Old-school way
+
+_This option will likely disappear in the future.  It relies on the
+`all.yaml` files that are written to the GitHub Pages area._
 
 ```
 kubectl create namespace lightbend
