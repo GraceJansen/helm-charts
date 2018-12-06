@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: prometheus
+    component: alertmanager
+  name: alertmanager-default
+data:
+{{ (.Files.Glob "alertmanager/*").AsConfig | indent 2}}
+{{ end }}

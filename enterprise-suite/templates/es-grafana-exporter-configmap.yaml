@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: exporter-graphs-cm
+data:
+{{ (.Files.Glob "es-grafana/*").AsConfig | indent 2 }}
+
+# Job to add data-source to grafana
+# 1. wait till grafana is up
+# 2. add prometheus data source to grafana-server.
+# Note: The IPaddress here is the address provided by minikube service list
+# this IP address is not static, even for minikube
+# Please note, browser should be able reach this IP-Address, it cannot be some internal IP address within kubernetes.
+# like prometheus-server.lightbend will not work
+#
