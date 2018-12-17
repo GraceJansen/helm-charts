@@ -1,3 +1,4 @@
+{{ if .Values.createAlertManager }}
 apiVersion: {{ .Values.deploymentApiVersion }}
 kind: Deployment
 metadata:
@@ -89,3 +90,4 @@ spec:
           {{ else }}
           emptyDir: {}
           {{ end }}
+{{ end }}

@@ -25,7 +25,8 @@ spec:
           - --verbose
           - --enable-search
       - name: es-console
-        image: {{ tpl .Values.esConsoleImage . }}:{{ .Values.esConsoleVersion }}
+        #image: {{ tpl .Values.esConsoleImage . }}:{{ .Values.esConsoleVersion }}
+        image: hyc-lightbend-es-console-docker-local.artifactory.swg-devops.com/es-console:v0.1.6
         imagePullPolicy: {{ .Values.imagePullPolicy }}
         resources:
           requests:

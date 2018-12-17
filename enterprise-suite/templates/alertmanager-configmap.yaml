@@ -1,3 +1,4 @@
+{{ if .Values.createAlertManager }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
