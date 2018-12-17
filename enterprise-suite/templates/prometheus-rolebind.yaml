@@ -1,12 +1,12 @@
 apiVersion: {{ .Values.rbacApiVersion }}
 kind: ClusterRoleBinding
 metadata:
-  name: {{.Release.Namespace}}:kube-state-metrics
+  name: {{.Release.Namespace}}:prometheus-server
 roleRef:
   apiGroup: {{ .Values.apiGroupVersion }}
   kind: ClusterRole
-  name: {{.Release.Namespace}}:kube-state-metrics
+  name: {{.Release.Namespace}}:prometheus-server
 subjects:
 - kind: ServiceAccount
-  name: prometheus-kube-state-metrics
+  name: prometheus-server
   namespace: {{.Release.Namespace}}

@@ -1,5 +1,4 @@
 {{- $shouldCreatePVCs := and (or .Values.usePersistentVolumes (not .Values.useEmptyDirVolumes)) (.Values.createPersistentVolumes) }}
----
 {{ if .Values.createAlertManager }}
 {{ if $shouldCreatePVCs }}
 kind: PersistentVolumeClaim

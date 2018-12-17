@@ -48,6 +48,42 @@ tempdir = ''
 def test_make_tempdir():
     return tempdir
 
+class SetStrParsingTest(unittest.TestCase):
+    def test_parsing(self):
+        # Empty
+        self.assertEqual(lbc.parse_set_string(""), [])
+
+        # Most trivial case
+        self.assertEqual(lbc.parse_set_string("key=value"), [("key", "value")])
+
+        # Escaped commas
+        self.assertEqual(lbc.parse_set_string("key=val1\\,val2"), [("key", "val1,val2")])
+
+        # Multiple key value pairs
+        self.assertEqual(lbc.parse_set_string("key1=val1,key2=val2"), [("key1", "val1"), ("key2", "val2")])
+        self.assertEqual(lbc.parse_set_string("key1=val1,key2=val2,b=c"), [("key1", "val1"), ("key2", "val2"), ("b", "c")])
+
+        # Quoted values
+        self.assertEqual(lbc.parse_set_string("key=\"value\""), [("key", "value")])
+        self.assertEqual(lbc.parse_set_string("key=\"val1,val2\""), [("key", "val1,val2")])
+
+        # Quoted values + multiple pairs
+        self.assertEqual(lbc.parse_set_string("key1=\"val1,val2\",key2=val3"), [("key1", "val1,val2"), ("key2", "val3")])
+
+        # Error cases
+        with self.assertRaises(ValueError):
+            lbc.parse_set_string("key=val1,val2,key2=val3")
+
+        with self.assertRaises(ValueError):
+            lbc.parse_set_string("val1,val2")
+
+        with self.assertRaises(ValueError):
+            lbc.parse_set_string("key=val1,key2=val1,val2")
+        
+        with self.assertRaises(ValueError):
+            lbc.parse_set_string("key=val1,key2==val1")
+
+
 class LbcTest(unittest.TestCase):
     def setUpFakeChartfile(self):
         # Create tempdir & fake chartfile there for export yaml tests.
@@ -95,6 +131,7 @@ class LbcTest(unittest.TestCase):
         expect_cmd(r'helm repo add es-repo https://repo.lightbend.com/helm-charts')
         expect_cmd(r'helm repo update')
         expect_cmd(r'helm status enterprise-suite', returncode=-1)
+        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
         expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+')
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file])
     
@@ -102,7 +139,21 @@ class LbcTest(unittest.TestCase):
         expect_cmd(r'helm repo add es-repo https://repo.lightbend.com/helm-charts')
         expect_cmd(r'helm repo update')
         expect_cmd(r'helm status enterprise-suite', returncode=-1)
+        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
         expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+  --wait')
+        
+        # Verify happens automatically when --wait is provided
+        expect_cmd(r'kubectl --namespace lightbend get deploy/es-console --no-headers',
+                   stdout='es-console 1 1 1 1 15m')
+        expect_cmd(r'kubectl --namespace lightbend get deploy/grafana-server --no-headers',
+                   stdout='grafana-server 1 1 1 1 15m')
+        expect_cmd(r'kubectl --namespace lightbend get deploy/prometheus-kube-state-metrics --no-headers',
+                   stdout='prometheus-kube-state-metrics 1 1 1 1 15m')
+        expect_cmd(r'kubectl --namespace lightbend get deploy/prometheus-server --no-headers',
+                   stdout='prometheus-server 2 2 2 2 15m')
+        expect_cmd(r'kubectl --namespace lightbend get deploy/prometheus-alertmanager --no-headers',
+                   stdout='prometheus-alertmanager 1 1 1 1 15m')
+
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--wait'])
 
     def test_install_helm_failed(self):
@@ -113,7 +164,6 @@ class LbcTest(unittest.TestCase):
                    stdout='LAST DEPLOYED: Tue Nov 13 09:59:46 2018\nNAMESPACE: lightbend\nSTATUS: FAILED\nNOTES: blah')
         expect_cmd(r'helm delete --purge enterprise-suite')
         expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
-        expect_cmd(r'kubectl get clusterroles --no-headers')
         expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+')
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file])
 
@@ -128,8 +178,7 @@ class LbcTest(unittest.TestCase):
                    stdout=('alertmanager-storage Bound pvc-a3815792-e744-11e8-a15b-080027dccb43 32Gi RWO standard 1h\n'
                            'es-grafana-storage Bound pvc-a3824cbc-e744-11e8-a15b-080027dccb43 32Gi RWO standard 1h\n'
                            'prometheus-storage Bound pvc-a382f4c1-e744-11e8-a15b-080027dccb43 256Gi RWO standard 1h\n'))
-        expect_cmd(r'kubectl get clusterroles --no-headers')
-        expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+  --set createPersistentVolumes=false')
+        expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+')
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file])
 
     def test_install_not_finished(self):
@@ -154,6 +203,7 @@ class LbcTest(unittest.TestCase):
         expect_cmd(r'helm repo update')
         expect_cmd(r'helm status enterprise-suite', returncode=0)
         expect_cmd(r'helm delete --purge enterprise-suite')
+        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
         expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+')
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--force-install'])
 
@@ -161,6 +211,7 @@ class LbcTest(unittest.TestCase):
         expect_cmd(r'helm repo add es-repo https://repo.lightbend.com/helm-charts')
         expect_cmd(r'helm repo update')
         expect_cmd(r'helm status enterprise-suite', returncode=-1)
+        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
         expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+ --set minikube=true --fakearg')
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--', '--set', 'minikube=true', '--fakearg'])
 
@@ -168,14 +219,16 @@ class LbcTest(unittest.TestCase):
         expect_cmd(r'helm repo add es-repo https://repo.lightbend.com/helm-charts')
         expect_cmd(r'helm repo update')
         expect_cmd(r'helm status enterprise-suite', returncode=-1)
-        expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+  --set "minikube=true" --set "usePersistentVolumes=true"')
+        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
+        expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+ --set minikube=true --set usePersistentVolumes=true ')
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--set', 'minikube=true', '--set', 'usePersistentVolumes=true'])
 
     def test_helm_set_array(self):
         expect_cmd(r'helm repo add es-repo https://repo.lightbend.com/helm-charts')
         expect_cmd(r'helm repo update')
         expect_cmd(r'helm status enterprise-suite', returncode=-1)
-        expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+  --set "alertmanagers=alertmgr-00\\,alertmgr-01\\,alertmgr-02"')
+        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
+        expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+ --set alertmanagers=alertmgr-00\\,alertmgr-01\\,alertmgr-02 ')
 
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--set', 'alertmanagers=alertmgr-00,alertmgr-01,alertmgr-02'])
 
@@ -183,11 +236,13 @@ class LbcTest(unittest.TestCase):
         expect_cmd(r'helm repo add es-repo https://repo.lightbend.com/helm-charts')
         expect_cmd(r'helm repo update')
         expect_cmd(r'helm status enterprise-suite', returncode=-1)
+        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
         expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --version 1\.0\.0-rc\.9 --values \S+')
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--version=1.0.0-rc.9'])
 
     def test_install_local_chart(self):
         expect_cmd(r'helm status enterprise-suite', returncode=-1)
+        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
         expect_cmd(r'helm install chart.tgz --name enterprise-suite --namespace lightbend --devel --values \S+')
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--local-chart=chart.tgz'])
 
@@ -195,6 +250,7 @@ class LbcTest(unittest.TestCase):
         expect_cmd(r'helm repo add es-repo https://repo.bintray.com/helm')
         expect_cmd(r'helm repo update')
         expect_cmd(r'helm status enterprise-suite', returncode=-1)
+        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
         expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+')
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--repo=https://repo.bintray.com/helm'])
 
@@ -202,42 +258,9 @@ class LbcTest(unittest.TestCase):
         expect_cmd(r'helm repo add es-repo https://repo.lightbend.com/helm-charts')
         expect_cmd(r'helm repo update')
         expect_cmd(r'helm status lb-console', returncode=-1)
+        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
         expect_cmd(r'helm install es-repo/enterprise-suite --name lb-console --namespace lightbend --devel --values \S+')
         lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--helm-name=lb-console'])
-
-    def test_install_reuse_pvcs(self):
-        expect_cmd(r'helm repo add es-repo https://repo.lightbend.com/helm-charts')
-        expect_cmd(r'helm repo update')
-        expect_cmd(r'helm status enterprise-suite', returncode=-1)
-        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers',
-                   stdout=('alertmanager-storage Bound pvc-a3815792-e744-11e8-a15b-080027dccb43 32Gi RWO standard 1h\n'
-                           'es-grafana-storage Bound pvc-a3824cbc-e744-11e8-a15b-080027dccb43 32Gi RWO standard 1h\n'
-                           'prometheus-storage Bound pvc-a382f4c1-e744-11e8-a15b-080027dccb43 256Gi RWO standard 1h\n'))
-        expect_cmd(r'kubectl get clusterroles --no-headers')
-        expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+  --set createPersistentVolumes=false')
-
-        lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--reuse-resources'])
-
-    def test_install_reuse_cluster_roles(self):
-        expect_cmd(r'helm repo add es-repo https://repo.lightbend.com/helm-charts')
-        expect_cmd(r'helm repo update')
-        expect_cmd(r'helm status enterprise-suite', returncode=-1)
-        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
-        expect_cmd(r'kubectl get clusterroles --no-headers',
-                   stdout='prometheus-kube-state-metrics 72m\nprometheus-server 72m')
-        expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+  --set createClusterRoles=false')
-
-        lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--reuse-resources'])
-
-    def test_install_reuse_resources_negative(self):
-        expect_cmd(r'helm repo add es-repo https://repo.lightbend.com/helm-charts')
-        expect_cmd(r'helm repo update')
-        expect_cmd(r'helm status enterprise-suite', returncode=-1)
-        expect_cmd(r'kubectl get pvc --namespace=lightbend --no-headers')
-        expect_cmd(r'kubectl get clusterroles --no-headers')
-        expect_cmd(r'helm install es-repo/enterprise-suite --name enterprise-suite --namespace lightbend --devel --values \S+')
-
-        lbc.main(['install', '--skip-checks', '--creds='+self.creds_file, '--reuse-resources'])
 
     def test_uninstall(self):
         expect_cmd(r'helm status enterprise-suite', returncode=0,
@@ -258,12 +281,12 @@ class LbcTest(unittest.TestCase):
         # Grafana is not running
         expect_cmd(r'kubectl --namespace monitoring get deploy/grafana-server --no-headers',
                    stdout='grafana-server 1 1 1 0 15m')
-        expect_cmd(r'kubectl --namespace monitoring get deploy/prometheus-alertmanager --no-headers',
-                   stdout='prometheus-alertmanager 1 1 1 1 15m')
         expect_cmd(r'kubectl --namespace monitoring get deploy/prometheus-kube-state-metrics --no-headers',
                    stdout='prometheus-kube-state-metrics 1 1 1 1 15m')
         expect_cmd(r'kubectl --namespace monitoring get deploy/prometheus-server --no-headers',
                    stdout='prometheus-server 2 2 2 2 15m')
+        expect_cmd(r'kubectl --namespace monitoring get deploy/prometheus-alertmanager --no-headers',
+                   stdout='prometheus-alertmanager 1 1 1 1 15m')
 
         # Expect verify to fail
         with self.assertRaises(TestFailException):
@@ -274,12 +297,12 @@ class LbcTest(unittest.TestCase):
                    stdout='es-console 1 1 1 1 15m')
         expect_cmd(r'kubectl --namespace monitoring get deploy/grafana-server --no-headers',
                    stdout='grafana-server 1 1 1 1 15m')
-        expect_cmd(r'kubectl --namespace monitoring get deploy/prometheus-alertmanager --no-headers',
-                   stdout='prometheus-alertmanager 1 1 1 1 15m')
         expect_cmd(r'kubectl --namespace monitoring get deploy/prometheus-kube-state-metrics --no-headers',
                    stdout='prometheus-kube-state-metrics 1 1 1 1 15m')
         expect_cmd(r'kubectl --namespace monitoring get deploy/prometheus-server --no-headers',
                    stdout='prometheus-server 2 2 2 2 15m')
+        expect_cmd(r'kubectl --namespace monitoring get deploy/prometheus-alertmanager --no-headers',
+                   stdout='prometheus-alertmanager 1 1 1 1 15m')
 
         lbc.main(['verify', '--skip-checks', '--namespace=monitoring'])
 

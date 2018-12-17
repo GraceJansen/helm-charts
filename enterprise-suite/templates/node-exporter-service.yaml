@@ -18,3 +18,4 @@ spec:
     app: prometheus
     component: "node-exporter"
   type: "ClusterIP"
+

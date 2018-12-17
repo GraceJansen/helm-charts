@@ -27,7 +27,7 @@ data:
       #   magic 'replace' value ' $1/' with a space prefix tells nginx to not add server and port
       # sub_filter 'match' 'replace'
       #   rewrites backend content, which we use for inserting the base path
-      # proxie_cookie_path 'match' 'replace'
+      # proxy_cookie_path 'match' 'replace'
       #   fixes session cookie Path attribute, for Grafana
 
       # proxy_pass backends with dynamic base url
@@ -77,6 +77,8 @@ data:
       }
 
       # redirect /service/prometheus -> /service/prometheus/
+      # redirect /service/grafana -> /service/grafana/
+      # redirect /service/alertmanager -> /service/alertmanager/
 
       location ~ (.*/service/(prometheus|grafana|alertmanager))$ {
         return 301 ' $1/';
@@ -89,12 +91,19 @@ data:
           "description": {{ .Chart.Description | quote }},
           "version": {{ .Chart.Version | quote }},
           {{- range $k, $v := .Values }}
-          {{- if and (ne $k "imageCredentials") ($v) }}
+            {{- if eq $k "imageCredentials" }}
+              {{- range $k2, $v2 := . }}
+                {{- if and (eq $k2 "registry") ($v2) }}
+          "imageCredentials": { {{ $k2 |quote }}: {{ $v2 | quote}} },
+                {{- end}}
+              {{- end}}
+            {{- else if ($v) }}
           {{ $k | quote }}: {{ $v | quote }},
+            {{- end}}
           {{- end}}
-          {{- end}}
-          "name": {{ .Chart.Name | quote }}\n}';
-        add_header Content-Type application/json;
+          "name": {{ .Chart.Name | quote }}
+        }';
+        default_type application/json;
       }
 
       # console entry point
